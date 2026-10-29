@@ -50,10 +50,24 @@ export function ContactForm(props) {
 
   if (!loaded) return h('p', { className: 'cf-loading' }, 'Loading…');
   const p = { ...loaded, ...props, questions: loaded.questions ?? props.questions };
+  // Where each field starts: the question's default, then the values the
+  // server put in props({ values }), then `defaultValues` from the page.
+  // `values` state only holds what the person changed, so a reset returns here.
+  const start = {};
+  for (const q of p.questions) {
+    if (q.type === 'section') continue;
+    const v =
+      p.defaultValues?.[q.name] ??
+      p.values?.[q.name] ??
+      (q.type === 'hidden' ? (q.value ?? q.default) : q.default);
+    if (v !== undefined && v !== null) start[q.name] = String(v);
+  }
+  const current = (name) => values[name] ?? start[name] ?? '';
+  const isOn = (v) => v === 'yes' || v === 'on' || v === 'true' || v === '1';
   const set = (name) => (e) =>
     setValues((v) => ({
       ...v,
-      [name]: e.target.type === 'checkbox' ? (e.target.checked ? 'on' : '') : e.target.value,
+      [name]: e.target.type === 'checkbox' ? (e.target.checked ? 'yes' : '') : e.target.value,
     }));
 
   async function onSubmit(e) {
@@ -88,7 +102,24 @@ export function ContactForm(props) {
   }
 
   if (state.status === 'sent')
-    return h('p', { className: 'cf-notice', role: 'status' }, state.message);
+    return h(
+      'div',
+      { className: 'cf-sent' },
+      h('p', { className: 'cf-notice', role: 'status' }, state.message),
+      // Anything the page passes as children (links, a mailto, next steps).
+      p.children ?? null,
+      p.resetLabel
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: 'cf-reset',
+              onClick: () => setState({ status: 'idle', message: '' }),
+            },
+            p.resetLabel,
+          )
+        : null,
+    );
 
   const id = (name) => `${p.idPrefix ?? 'cf'}-${name}`;
   const field = (q) => {
@@ -98,24 +129,36 @@ export function ContactForm(props) {
       required: q.required,
       placeholder: q.placeholder,
       autoComplete: q.autocomplete,
-      value: values[q.name] ?? '',
+      value: current(q.name),
       onChange: set(q.name),
     };
+    if (q.type === 'section')
+      return h(
+        'div',
+        { key: q.name, className: 'cf-section-group' },
+        h('h3', { className: 'cf-section', id: id(q.name) }, q.label),
+        q.help ? h('p', { className: 'cf-help' }, q.help) : null,
+      );
     if (q.type === 'hidden')
-      return h('input', { key: q.name, type: 'hidden', name: q.name, value: q.value ?? '' });
+      return h('input', { key: q.name, type: 'hidden', name: q.name, value: current(q.name) });
     let control;
     if (q.type === 'textarea')
       control = h('textarea', { ...common, rows: q.rows ?? 5, maxLength: q.maxLength });
-    else if (q.type === 'select')
+    else if (q.type === 'select') {
+      // A placeholder (or "-" when optional) is an empty first option, so a
+      // required select makes the person choose instead of submitting the
+      // first option listed.
+      const { placeholder, ...rest } = common;
+      const blank = placeholder ? placeholder : q.required ? null : '-';
       control = h(
         'select',
-        common,
-        q.required ? null : h('option', { value: '' }, '-'),
+        rest,
+        blank === null ? null : h('option', { value: '' }, blank),
         ...q.options.map((o) => h('option', { key: o.value, value: o.value }, o.label)),
       );
-    else if (q.type === 'checkbox') {
-      const { value, ...rest } = common;
-      control = h('input', { ...rest, type: 'checkbox', checked: value === 'on' });
+    } else if (q.type === 'checkbox') {
+      const { value, placeholder, ...rest } = common;
+      control = h('input', { ...rest, type: 'checkbox', checked: isOn(value) });
     } else control = h('input', { ...common, type: q.type, maxLength: q.maxLength });
     const label = h(
       'label',

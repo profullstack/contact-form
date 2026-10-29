@@ -48,6 +48,8 @@ const TYPES = new Set([
   'number',
   'checkbox',
   'hidden',
+  // Not a field: a heading (label) and optional help line between groups of fields.
+  'section',
 ]);
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -95,11 +97,30 @@ export function normalizeQuestions(questions = DEFAULT_QUESTIONS) {
       if (type === 'select' && options.length === 0) {
         throw new TypeError(`contact-form: select question "${q.name}" needs options`);
       }
+      if (
+        type === 'select' &&
+        q.default !== undefined &&
+        !options.some((o) => o.value === String(q.default))
+      ) {
+        throw new TypeError(
+          `contact-form: select question "${q.name}" defaults to "${q.default}", which is not an option`,
+        );
+      }
       return Object.freeze({
         ...q,
         type,
         label: q.label ?? humanize(q.name),
-        required: q.required === true,
+        required: type === 'section' ? false : q.required === true,
+        ...(q.default !== undefined
+          ? {
+              default:
+                type === 'checkbox'
+                  ? q.default === true || q.default === 'yes' || q.default === 'on'
+                    ? 'yes'
+                    : ''
+                  : String(q.default),
+            }
+          : {}),
         maxLength: q.maxLength ?? (type === 'textarea' ? 5000 : 500),
         ...(options ? { options: Object.freeze(options) } : {}),
       });
@@ -139,6 +160,7 @@ export function withQuestions({
 export function validate(questions, body) {
   const values = {};
   for (const q of questions) {
+    if (q.type === 'section') continue;
     const raw = body?.[q.name];
     let v;
     if (q.type === 'checkbox')
@@ -194,6 +216,7 @@ export function publicQuestions(questions) {
       autocomplete,
       help,
       value,
+      default: initial,
     }) => ({
       name,
       label,
@@ -206,6 +229,7 @@ export function publicQuestions(questions) {
       ...(autocomplete ? { autocomplete } : {}),
       ...(help ? { help } : {}),
       ...(value !== undefined ? { value: String(value) } : {}),
+      ...(initial !== undefined ? { default: initial } : {}),
     }),
   );
 }

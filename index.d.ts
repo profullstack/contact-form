@@ -23,7 +23,9 @@ export type QuestionType =
   | 'tel'
   | 'number'
   | 'checkbox'
-  | 'hidden';
+  | 'hidden'
+  /** Not a field: a heading (`label`) and optional `help` between groups of fields. */
+  | 'section';
 
 export interface QuestionOption {
   value: string;
@@ -53,6 +55,12 @@ export interface Question {
   patternMessage?: string;
   /** For `hidden`: the value sent. */
   value?: string;
+  /**
+   * The value the field starts with (a select preset, a box ticked: true/'yes').
+   * A select's default must be one of its options. Per-render values go in
+   * `props({ values })` / `render({ values })` instead.
+   */
+  default?: string | boolean;
 }
 
 export interface NormalizedQuestion
@@ -65,6 +73,7 @@ export interface NormalizedQuestion
   pattern?: string;
   patternMessage?: string;
   value?: string;
+  default?: string;
 }
 
 /** name (required), email (required), message (required). */
@@ -252,6 +261,7 @@ export interface ContactFormProps {
   honeypotField: string | null;
   submitLabel: string;
   successMessage: string;
+  values?: Record<string, string>;
 }
 
 export interface ContactForm {
@@ -274,6 +284,8 @@ export interface ContactForm {
     action?: string;
     submitLabel?: string;
     successMessage?: string;
+    /** Starting values for this render (a hidden `ref` from ?ref=, a pre-ticked box). Question names only. */
+    values?: Record<string, string | boolean>;
   }): Promise<ContactFormProps>;
   /** The submit handler: JSON in, JSON out; a plain form post gets a 303 back. */
   POST(req: ContactRequest): Promise<Response>;

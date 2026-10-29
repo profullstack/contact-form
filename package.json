@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/contact-form",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "The Profullstack contact form: customizable questions with generic defaults, form-guard spam protection (signed proof-of-render token, honeypot, fill time, rate limit), validation, Resend delivery, HTML and React rendering, one handler for JSON and plain form posts.",
   "keywords": [

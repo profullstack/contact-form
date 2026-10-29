@@ -128,6 +128,21 @@ Or a whole list: `questions: [{ name: 'email', required: true }, { name: 'idea',
 Only answers to questions reach the email or `persist`: an extra key in the
 body is ignored, so nobody can smuggle fields into what you read.
 
+**Since 0.2.0:**
+
+- `type: 'section'` is a heading (`label`, optional `help`) between groups of
+  fields. It is never validated or emailed.
+- `default` is the value a field starts with: a select preset (it must be one
+  of the options) or a ticked checkbox (`true`).
+- A select's `placeholder` becomes an empty first option that starts selected.
+  On a required select the browser then makes the person choose, instead of
+  sending whichever option is listed first.
+- Per-render starting values, such as a hidden `ref` from `?ref=` or a box the
+  link ticked: `contact.props({ values: { ref } })` or
+  `contact.render({ values })`. Only question names are kept.
+- `<ContactForm>` also takes `defaultValues` (these win), `children` (shown
+  under the success message) and `resetLabel` (a "Send another" button).
+
 ## Forms that ask for something specific
 
 An order form, a build request or a bug report asked for something; the

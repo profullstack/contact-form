@@ -478,7 +478,26 @@ export function createContactForm(options = {}) {
         o.successMessage ??
         options.successMessage ??
         "Thanks, your message is on its way. We'll be in touch.",
+      // Per-render starting values (a hidden `ref` from ?ref=, a box ticked by
+      // the link that led here). Only question names, as strings.
+      ...(o.values ? { values: pickValues(o.values) } : {}),
     };
+  }
+
+  function pickValues(values) {
+    const out = {};
+    for (const q of questions) {
+      if (q.type === 'section') continue;
+      const v = values[q.name];
+      if (v === undefined || v === null) continue;
+      out[q.name] =
+        q.type === 'checkbox'
+          ? v === true || v === 'yes' || v === 'on' || v === '1' || v === 'true'
+            ? 'yes'
+            : ''
+          : String(v);
+    }
+    return out;
   }
 
   function answer(kind, ctx, html, req) {

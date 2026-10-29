@@ -22,8 +22,27 @@ const attr = (name, value) =>
       ? ` ${name}`
       : ` ${name}="${escapeHtml(value)}"`;
 
+/**
+ * The empty first option of a select, if it has one: its placeholder
+ * ("Select a service..."), or "-" when it is optional. A required select
+ * with a placeholder starts on it, so the browser makes the person choose
+ * instead of submitting whatever happens to be listed first.
+ */
+export function blankOption(q) {
+  if (q.placeholder) return q.placeholder;
+  return q.required ? null : '-';
+}
+
+/** The value a question starts with: what was submitted, else its default. */
+export function initialValue(q, values) {
+  const v = values?.[q.name];
+  if (v !== undefined && v !== null) return String(v);
+  if (q.type === 'hidden') return q.value ?? q.default ?? '';
+  return q.default ?? '';
+}
+
 function control(q, value, id) {
-  const common = `${attr('id', id)}${attr('name', q.name)}${attr('required', q.required)}${attr('placeholder', q.placeholder)}${attr('autocomplete', q.autocomplete)}`;
+  const common = `${attr('id', id)}${attr('name', q.name)}${attr('required', q.required)}${q.type === 'select' ? '' : attr('placeholder', q.placeholder)}${attr('autocomplete', q.autocomplete)}`;
   switch (q.type) {
     case 'textarea':
       return `<textarea${common}${attr('rows', q.rows ?? 5)}${attr('maxlength', q.maxLength)}>${escapeHtml(value)}</textarea>`;
@@ -34,12 +53,13 @@ function control(q, value, id) {
             `<option${attr('value', o.value)}${attr('selected', o.value === value)}>${escapeHtml(o.label)}</option>`,
         )
         .join('');
-      return `<select${common}>${q.required ? '' : '<option value="">-</option>'}${opts}</select>`;
+      const blank = blankOption(q);
+      return `<select${common}>${blank === null ? '' : `<option value=""${attr('selected', value === '')}>${escapeHtml(blank)}</option>`}${opts}</select>`;
     }
     case 'checkbox':
       return `<input type="checkbox"${common}${attr('checked', value === 'yes' || value === 'on')}>`;
     case 'hidden':
-      return `<input type="hidden"${attr('name', q.name)}${attr('value', value || q.value)}>`;
+      return `<input type="hidden"${attr('name', q.name)}${attr('value', value)}>`;
     default:
       return `<input${attr('type', q.type)}${common}${attr('maxlength', q.maxLength)}${attr('value', value)}>`;
   }
@@ -63,12 +83,15 @@ export function renderForm(o) {
   const rows = o.questions
     .map((q) => {
       const id = `${prefix}-${q.name}`;
-      if (q.type === 'hidden') return control(q, values[q.name] ?? '', id);
-      const label = `<label${attr('for', id)}>${escapeHtml(q.label)}${q.required ? '' : ' <span class="cf-optional">(optional)</span>'}</label>`;
+      const value = initialValue(q, values);
       const help = q.help ? `<p class="cf-help">${escapeHtml(q.help)}</p>` : '';
+      if (q.type === 'section')
+        return `<h3 class="cf-section"${attr('id', id)}>${escapeHtml(q.label)}</h3>${help}`;
+      if (q.type === 'hidden') return control(q, value, id);
+      const label = `<label${attr('for', id)}>${escapeHtml(q.label)}${q.required ? '' : ' <span class="cf-optional">(optional)</span>'}</label>`;
       if (q.type === 'checkbox')
-        return `<div class="cf-field cf-check">${control(q, values[q.name] ?? '', id)} ${label}${help}</div>`;
-      return `<div class="cf-field">${label}${control(q, values[q.name] ?? '', id)}${help}</div>`;
+        return `<div class="cf-field cf-check">${control(q, value, id)} ${label}${help}</div>`;
+      return `<div class="cf-field">${label}${control(q, value, id)}${help}</div>`;
     })
     .join('\n  ');
   const banner = o.error
