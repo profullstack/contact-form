@@ -1,0 +1,84 @@
+{
+  "name": "@profullstack/contact-form",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "The Profullstack contact form: customizable questions with generic defaults, form-guard spam protection (signed proof-of-render token, honeypot, fill time, rate limit), validation, Resend delivery, HTML and React rendering, one handler for JSON and plain form posts.",
+  "keywords": [
+    "contact-form",
+    "form",
+    "spam",
+    "honeypot",
+    "form-guard",
+    "resend",
+    "nextjs",
+    "react",
+    "hono",
+    "sveltekit"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/profullstack/contact-form.git"
+  },
+  "homepage": "https://github.com/profullstack/contact-form#readme",
+  "bugs": {
+    "url": "https://github.com/profullstack/contact-form/issues"
+  },
+  "license": "MIT",
+  "author": "Profullstack, Inc.",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./react": {
+      "types": "./react.d.ts",
+      "default": "./react.js"
+    },
+    "./browser": {
+      "types": "./browser.d.ts",
+      "default": "./browser.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "src",
+    "index.js",
+    "index.d.ts",
+    "react.js",
+    "react.d.ts",
+    "browser.js",
+    "browser.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "lint": "bun run --bun biome check .",
+    "format": "bun run --bun biome format --write ."
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@profullstack/emailer": "^1.0.3",
+    "@profullstack/form-guard": "^0.3.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
