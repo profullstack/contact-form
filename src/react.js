@@ -180,7 +180,9 @@ export function ContactForm(props) {
       'label',
       { htmlFor: id(q.name) },
       q.label,
-      q.required ? null : h('span', { className: 'cf-optional' }, ' (optional)'),
+      q.required || q.type === 'checkbox'
+        ? null
+        : h('span', { className: 'cf-optional' }, ' (optional)'),
     );
     const help = q.help ? h('p', { className: 'cf-help' }, q.help) : null;
     return q.type === 'checkbox'

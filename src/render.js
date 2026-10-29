@@ -88,7 +88,7 @@ export function renderForm(o) {
       if (q.type === 'section')
         return `<h3 class="cf-section"${attr('id', id)}>${escapeHtml(q.label)}</h3>${help}`;
       if (q.type === 'hidden') return control(q, value, id);
-      const label = `<label${attr('for', id)}>${escapeHtml(q.label)}${q.required ? '' : ' <span class="cf-optional">(optional)</span>'}</label>`;
+      const label = `<label${attr('for', id)}>${escapeHtml(q.label)}${q.required || q.type === 'checkbox' ? '' : ' <span class="cf-optional">(optional)</span>'}</label>`;
       if (q.type === 'checkbox')
         return `<div class="cf-field cf-check">${control(q, value, id)} ${label}${help}</div>`;
       return `<div class="cf-field">${label}${control(q, value, id)}${help}</div>`;
