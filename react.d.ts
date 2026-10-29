@@ -13,6 +13,10 @@ export interface ContactFormComponentProps extends Partial<ContactFormProps> {
   children?: ReactNode;
   /** A button under the success message that brings the form back ("Send another"). */
   resetLabel?: string;
+  /** Called with the body before sending (analytics); return false to cancel. */
+  onSubmit?(body: Record<string, string>): boolean | undefined;
+  /** Called with the message shown when sending fails. */
+  onError?(message: string, response: unknown): void;
   onSent?(body: Record<string, string>, response: unknown): void;
 }
 

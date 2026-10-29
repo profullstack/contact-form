@@ -240,7 +240,7 @@ describe('createContactForm', () => {
     expect(mails).toHaveLength(1);
     const bad = await form.POST(formReq({ ...VALID, email: 'x', fg_token: await tokenOf(form) }));
     expect(bad.headers.get('location')).toBe(
-      'https://example.com/contact?error=Email+must+be+a+valid+email+address',
+      'https://example.com/contact?error=invalid&field=email&reason=email',
     );
     const relative = createContactForm({
       to: 'a@b.c',

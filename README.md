@@ -72,22 +72,45 @@ A page that is a client component all the way down can fetch the props:
 export `GET = contact.GET` from the route and render
 `<ContactForm src="/api/contact" />`.
 
+**With `cacheComponents` (Next 16) on**, `export const dynamic` is refused at
+build time. Render the form inside `<Suspense>` from an async component that
+calls `await connection()` (from `next/server`) before `contact.props()`, so the
+token is minted per request:
+
+```jsx
+async function FormSlot() {
+  await connection();
+  return <ContactForm {...(await contact.props())} />;
+}
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <FormSlot />
+    </Suspense>
+  );
+}
+```
+
+`<ContactForm>` also takes `onSubmit(body)` (return `false` to cancel; for an
+analytics "submit" event), `onError(message, response)`, `onSent(body, response)`,
+`defaultValues`, `resetLabel` and `children` (shown under the success message).
+
 ### Hono, Express-style, SvelteKit, any template string
 
 ```js
 app.get('/contact', async (c) =>
-  c.html(
-    layout(
-      await contact.render({
-        action: '/contact',
-        notice: c.req.query('sent') ? 'Thanks!' : undefined,
-        error: c.req.query('error'),
-      }),
-    ),
-  ),
+  c.html(layout(await contact.render({ action: '/contact', query: c.req.url }))),
 );
 app.post('/contact', (c) => contact.POST(c.req.raw));
 ```
+
+A plain `<form>` post is answered with a 303 back to the page: `?sent=1`, or
+`?error=<code>` (`invalid`, `retry`, `limited`, `sendFailed`, `error`) plus
+`&field=&reason=` for a validation failure. The URL never carries free text,
+because a page that prints `?error=` would print whatever a crafted link held.
+`render({ query })` turns it back into this form's own message, or call
+`contact.errorMessage(query)` / `contact.sentMessage(query)` yourself. Never
+print the raw query value.
 
 Serve the page with `cache-control: no-store`: a cached page shares one token
 between visitors and expires it for all of them.
@@ -127,6 +150,11 @@ Or a whole list: `questions: [{ name: 'email', required: true }, { name: 'idea',
 
 Only answers to questions reach the email or `persist`: an extra key in the
 body is ignored, so nobody can smuggle fields into what you read.
+
+**Since 0.3.0:** `minLength`; `pattern` must match the whole answer (as in
+HTML) and is sent to the input with `patternMessage` as its title, so both
+are checked in the browser too. A select reads as its label in the email.
+Messages use the label without a trailing `*` or `:`.
 
 **Since 0.2.0:**
 

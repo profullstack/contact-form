@@ -150,52 +150,91 @@ export function withQuestions({
   return [...kept.slice(0, at), ...add, ...kept.slice(at)];
 }
 
+/** A label fit for a sentence: "Name *" and "Email:" read as "Name" and "Email". */
+export function plainLabel(q) {
+  return (
+    String(q.label)
+      .replace(/\s*[*:]+\s*$/, '')
+      .trim() || humanize(q.name)
+  );
+}
+
+/**
+ * The message for a validation failure. One function, so the JSON answer and
+ * a page rebuilding the message from `?error=invalid&field=&reason=` (see
+ * contact.errorMessage) always say the same thing.
+ */
+export function validationMessage(q, reason) {
+  const label = plainLabel(q);
+  switch (reason) {
+    case 'required':
+      return `${label} is required`;
+    case 'tooLong':
+      return `${label} is too long (${q.maxLength} characters at most)`;
+    case 'tooShort':
+      return `${label} is too short (${q.minLength} characters at least)`;
+    case 'email':
+      return `${label} must be a valid email address`;
+    case 'url':
+      return `${label} must be a link starting with https://`;
+    case 'number':
+      return `${label} must be a number`;
+    case 'select':
+      return `Choose one of the options for ${label}`;
+    case 'pattern':
+      return q.patternMessage ?? `${label} is not in the expected format`;
+    default:
+      return `Check ${label} and try again`;
+  }
+}
+
+export const VALIDATION_REASONS = Object.freeze([
+  'required',
+  'tooLong',
+  'tooShort',
+  'email',
+  'url',
+  'number',
+  'select',
+  'pattern',
+]);
+
 /**
  * Validate submitted values against the questions.
  *
- * @returns {{ ok: true, values: Record<string,string> } | { ok: false, error: string, field: string }}
+ * @returns {{ ok: true, values: Record<string,string> } | { ok: false, error: string, field: string, reason: string }}
  *   `values` holds every question's trimmed value (unknown body keys are
  *   left out, so a bot cannot smuggle extra fields into the email).
  */
 export function validate(questions, body) {
   const values = {};
+  const fail = (q, reason) => ({
+    ok: false,
+    field: q.name,
+    reason,
+    error: validationMessage(q, reason),
+  });
   for (const q of questions) {
     if (q.type === 'section') continue;
     const raw = body?.[q.name];
     let v;
     if (q.type === 'checkbox')
-      v = raw === true || raw === 'on' || raw === 'true' || raw === '1' ? 'yes' : '';
+      v =
+        raw === true || raw === 'on' || raw === 'true' || raw === '1' || raw === 'yes' ? 'yes' : '';
     else
       v = raw === undefined || raw === null ? '' : String(Array.isArray(raw) ? raw[0] : raw).trim();
     if (v === '') {
-      if (q.required) return { ok: false, field: q.name, error: `${q.label} is required` };
+      if (q.required) return fail(q, 'required');
       values[q.name] = '';
       continue;
     }
-    if (v.length > q.maxLength)
-      return {
-        ok: false,
-        field: q.name,
-        error: `${q.label} is too long (${q.maxLength} characters at most)`,
-      };
-    if (q.type === 'email' && !EMAIL_RE.test(v))
-      return { ok: false, field: q.name, error: `${q.label} must be a valid email address` };
-    if (q.type === 'url' && !URL_RE.test(v))
-      return {
-        ok: false,
-        field: q.name,
-        error: `${q.label} must be a link starting with https://`,
-      };
-    if (q.type === 'number' && !Number.isFinite(Number(v)))
-      return { ok: false, field: q.name, error: `${q.label} must be a number` };
-    if (q.type === 'select' && !q.options.some((o) => o.value === v))
-      return { ok: false, field: q.name, error: `Choose one of the options for ${q.label}` };
-    if (q.pattern && !new RegExp(q.pattern).test(v))
-      return {
-        ok: false,
-        field: q.name,
-        error: q.patternMessage ?? `${q.label} is not in the expected format`,
-      };
+    if (v.length > q.maxLength) return fail(q, 'tooLong');
+    if (q.minLength && v.length < q.minLength) return fail(q, 'tooShort');
+    if (q.type === 'email' && !EMAIL_RE.test(v)) return fail(q, 'email');
+    if (q.type === 'url' && !URL_RE.test(v)) return fail(q, 'url');
+    if (q.type === 'number' && !Number.isFinite(Number(v))) return fail(q, 'number');
+    if (q.type === 'select' && !q.options.some((o) => o.value === v)) return fail(q, 'select');
+    if (q.pattern && !new RegExp(`^(?:${q.pattern})$`).test(v)) return fail(q, 'pattern');
     values[q.name] = v;
   }
   return { ok: true, values };
@@ -217,6 +256,9 @@ export function publicQuestions(questions) {
       help,
       value,
       default: initial,
+      minLength,
+      pattern,
+      patternMessage,
     }) => ({
       name,
       label,
@@ -230,6 +272,9 @@ export function publicQuestions(questions) {
       ...(help ? { help } : {}),
       ...(value !== undefined ? { value: String(value) } : {}),
       ...(initial !== undefined ? { default: initial } : {}),
+      ...(minLength ? { minLength } : {}),
+      ...(pattern ? { pattern } : {}),
+      ...(patternMessage ? { patternMessage } : {}),
     }),
   );
 }

@@ -43,6 +43,8 @@ export interface Question {
   required?: boolean;
   /** Default 5000 for a textarea, 500 otherwise. */
   maxLength?: number;
+  /** Fewest characters an answer may have (checked in the browser too). */
+  minLength?: number;
   placeholder?: string;
   /** For `select`. Strings are both value and label. */
   options?: ReadonlyArray<string | QuestionOption>;
@@ -50,7 +52,7 @@ export interface Question {
   autocomplete?: string;
   /** A line of help under the field. */
   help?: string;
-  /** A regex source the value must match. */
+  /** A regex source the WHOLE value must match (as the HTML `pattern` attribute; sent to the input too). */
   pattern?: string;
   patternMessage?: string;
   /** For `hidden`: the value sent. */
@@ -74,6 +76,7 @@ export interface NormalizedQuestion
   patternMessage?: string;
   value?: string;
   default?: string;
+  minLength?: number;
 }
 
 /** name (required), email (required), message (required). */
@@ -95,7 +98,27 @@ export declare function withQuestions(options?: {
 export declare function validate(
   questions: ReadonlyArray<NormalizedQuestion>,
   body: Record<string, unknown>,
-): { ok: true; values: Record<string, string> } | { ok: false; error: string; field: string };
+):
+  | { ok: true; values: Record<string, string> }
+  | { ok: false; error: string; field: string; reason: ValidationReason };
+
+export type ValidationReason =
+  | 'required'
+  | 'tooLong'
+  | 'tooShort'
+  | 'email'
+  | 'url'
+  | 'number'
+  | 'select'
+  | 'pattern';
+export declare const VALIDATION_REASONS: readonly ValidationReason[];
+/** The one message for a validation failure (JSON answer and errorMessage() share it). */
+export declare function validationMessage(
+  question: NormalizedQuestion,
+  reason: ValidationReason,
+): string;
+/** The label without a trailing "*" or ":", for sentences. */
+export declare function plainLabel(question: NormalizedQuestion): string;
 
 export declare function publicQuestions(
   questions: ReadonlyArray<NormalizedQuestion>,
@@ -176,6 +199,8 @@ export interface ContactRouteResponses {
   limited?: ContactResponseValue;
 }
 export type ContactResponseStyle = 'message' | 'success' | 'ok';
+/** The ?error= codes a plain form post is redirected with. */
+export declare const ERROR_CODES: readonly ['invalid', 'retry', 'limited', 'sendFailed', 'error'];
 export declare const STYLE_PRESETS: Readonly<Record<ContactResponseStyle, ContactRouteResponses>>;
 
 export interface ContactConfirmation {
@@ -278,7 +303,19 @@ export interface ContactForm {
     submitLabel?: string;
     className?: string;
     idPrefix?: string;
+    /**
+     * The page's query (URL, URLSearchParams, string or Next searchParams): sets `notice` for
+     * ?sent=1 and `error` from ?error= via errorMessage(), unless given explicitly.
+     */
+    query?: unknown;
   }): Promise<string>;
+  /**
+   * The safe message for a plain-form redirect's ?error=<code>&field=&reason=, rebuilt from
+   * this form's questions and `responses` (never text from the URL). null when there is none.
+   */
+  errorMessage(query: unknown): string | null;
+  /** The success message when the query has ?sent=1, else null. */
+  sentMessage(query: unknown): string | null;
   /** Props for <ContactForm> from '@profullstack/contact-form/react'. */
   props(options?: {
     action?: string;
@@ -287,7 +324,10 @@ export interface ContactForm {
     /** Starting values for this render (a hidden `ref` from ?ref=, a pre-ticked box). Question names only. */
     values?: Record<string, string | boolean>;
   }): Promise<ContactFormProps>;
-  /** The submit handler: JSON in, JSON out; a plain form post gets a 303 back. */
+  /**
+   * The submit handler: JSON in, JSON out. A plain form post gets a 303 back to the page with
+   * ?sent=1 or ?error=<code> (&field=&reason= for a validation failure); never free text.
+   */
   POST(req: ContactRequest): Promise<Response>;
   /** Same as POST. */
   handle(req: ContactRequest): Promise<Response>;

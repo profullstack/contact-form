@@ -24,8 +24,11 @@ import {
   EMAIL_RE,
   humanize,
   normalizeQuestions,
+  plainLabel,
   publicQuestions,
+  VALIDATION_REASONS,
   validate,
+  validationMessage,
 } from './questions.js';
 import { escapeHtml, renderForm } from './render.js';
 
@@ -83,6 +86,25 @@ export const STYLE_PRESETS = Object.freeze({
     },
   },
 });
+
+/** The ?error= codes a plain form post can be redirected with. */
+export const ERROR_CODES = Object.freeze(['invalid', 'retry', 'limited', 'sendFailed', 'error']);
+
+function toGetter(query) {
+  if (!query) return () => null;
+  if (typeof query === 'string') {
+    const p = new URLSearchParams(
+      query.includes('?') ? query.slice(query.indexOf('?') + 1) : query,
+    );
+    return (k) => p.get(k);
+  }
+  if (query instanceof URL) return (k) => query.searchParams.get(k);
+  if (typeof query.get === 'function') return (k) => query.get(k);
+  return (k) => {
+    const v = query[k];
+    return Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+  };
+}
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -295,7 +317,14 @@ async function pipeline({ req, body, options, guard, collect, getSender }) {
   }
 
   const collected = collect(body);
-  if (!collected.ok) return { kind: 'invalid', ctx: { error: collected.error } };
+  if (!collected.ok)
+    return {
+      kind: 'invalid',
+      ctx: {
+        error: collected.error,
+        ...(collected.field ? { field: collected.field, reason: collected.reason } : {}),
+      },
+    };
   const submission = collected.submission;
 
   // A form that asked for something specific (an idea, a bug, an address)
@@ -417,7 +446,7 @@ export function createContactForm(options = {}) {
 
   const collect = (body) => {
     const v = validate(questions, body);
-    if (!v.ok) return v;
+    if (!v.ok) return { ok: false, error: v.error, field: v.field, reason: v.reason };
     const values = v.values;
     const rows = [];
     const fields = {};
@@ -425,7 +454,10 @@ export function createContactForm(options = {}) {
       const value = values[q.name];
       if (!value || q.name === messageField) continue;
       fields[q.name] = value;
-      rows.push([q.label, value]);
+      // A select reads as its label in the email ("Bug Report", not "bug").
+      const shown =
+        q.type === 'select' ? (q.options.find((o) => o.value === value)?.label ?? value) : value;
+      rows.push([plainLabel(q), shown]);
     }
     return {
       ok: true,
@@ -456,8 +488,8 @@ export function createContactForm(options = {}) {
       guardHtml: await guardHtml(),
       action: o.action ?? options.action ?? '/api/contact',
       values: o.values,
-      error: o.error,
-      notice: o.notice,
+      error: o.error ?? (o.query ? errorMessage(o.query) : undefined),
+      notice: o.notice ?? (o.query ? sentMessage(o.query) : undefined),
       submitLabel: o.submitLabel ?? options.submitLabel,
       className: o.className,
       idPrefix: o.idPrefix,
@@ -501,23 +533,33 @@ export function createContactForm(options = {}) {
   }
 
   function answer(kind, ctx, html, req) {
-    // A plain <form> post gets a page back, not JSON: redirect to the
-    // success URL, or to the error URL with the message.
+    // A plain <form> post gets a page back, not JSON: a 303 to the page with
+    // ?sent=1, or ?error=<code> (and &field=&reason= for a validation
+    // failure). Never free text: a page that prints ?error= would print
+    // whatever a crafted link carried. contact.errorMessage(query) turns the
+    // code back into this form's own message.
     if (html) {
       const back = options.redirect ?? req.headers?.get?.('referer') ?? '/';
       const url = (q) => {
         const u = new URL(back, 'http://x.invalid');
+        for (const k of ['sent', 'error', 'field', 'reason']) u.searchParams.delete(k);
         for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v);
         return u.origin === 'http://x.invalid' ? `${u.pathname}${u.search}${u.hash}` : u.toString();
       };
       if (kind === 'success' || kind === 'honeypot')
         return new Response(null, { status: 303, headers: { location: url({ sent: '1' }) } });
-      const s = spec(responses[kind] ?? responses.invalid, ctx);
-      const msg = ctx.error ?? s?.body?.error ?? s?.body?.message ?? 'Something went wrong.';
-      return new Response(null, {
-        status: 303,
-        headers: { location: url({ error: String(msg).slice(0, 200) }) },
-      });
+      const code = ERROR_CODES.includes(kind) ? kind : 'error';
+      const q = { error: code };
+      if (
+        code === 'invalid' &&
+        ctx.field &&
+        byName.has(ctx.field) &&
+        VALIDATION_REASONS.includes(ctx.reason)
+      ) {
+        q.field = ctx.field;
+        q.reason = ctx.reason;
+      }
+      return new Response(null, { status: 303, headers: { location: url(q) } });
     }
     const s = spec(
       responses[kind] ??
@@ -525,6 +567,34 @@ export function createContactForm(options = {}) {
       ctx,
     );
     return json(s.body, s.status ?? 200);
+  }
+
+  /**
+   * The message for a redirect's ?error= code, safe to print: rebuilt from
+   * this form's questions and `responses`, never taken from the URL. Accepts
+   * a URL, a URLSearchParams, a query string or a { error, field, reason }
+   * object (Next's searchParams). Returns null when there is no error.
+   */
+  function errorMessage(query) {
+    const get = toGetter(query);
+    const code = get('error');
+    if (!code) return null;
+    if (code === 'invalid') {
+      const q = byName.get(get('field') ?? '');
+      const reason = get('reason');
+      if (q && VALIDATION_REASONS.includes(reason)) return validationMessage(q, reason);
+    }
+    const kind = ERROR_CODES.includes(code) ? code : 'error';
+    const body = spec(responses[kind] ?? responses.error, {})?.body;
+    const text = body?.error ?? body?.message;
+    return typeof text === 'string' && text ? text : 'Something went wrong. Please try again.';
+  }
+
+  /** "Thanks" text for ?sent=1, else null. */
+  function sentMessage(query) {
+    return toGetter(query)('sent') === '1'
+      ? (options.successMessage ?? "Thanks, your message is on its way. We'll be in touch.")
+      : null;
   }
 
   async function post(req) {
@@ -559,6 +629,8 @@ export function createContactForm(options = {}) {
     guardHtml,
     render,
     props,
+    errorMessage,
+    sentMessage,
     POST: post,
     GET: get,
     handle: post,

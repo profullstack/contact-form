@@ -45,7 +45,7 @@ function control(q, value, id) {
   const common = `${attr('id', id)}${attr('name', q.name)}${attr('required', q.required)}${q.type === 'select' ? '' : attr('placeholder', q.placeholder)}${attr('autocomplete', q.autocomplete)}`;
   switch (q.type) {
     case 'textarea':
-      return `<textarea${common}${attr('rows', q.rows ?? 5)}${attr('maxlength', q.maxLength)}>${escapeHtml(value)}</textarea>`;
+      return `<textarea${common}${attr('rows', q.rows ?? 5)}${attr('minlength', q.minLength)}${attr('maxlength', q.maxLength)}>${escapeHtml(value)}</textarea>`;
     case 'select': {
       const opts = q.options
         .map(
@@ -61,7 +61,7 @@ function control(q, value, id) {
     case 'hidden':
       return `<input type="hidden"${attr('name', q.name)}${attr('value', value)}>`;
     default:
-      return `<input${attr('type', q.type)}${common}${attr('maxlength', q.maxLength)}${attr('value', value)}>`;
+      return `<input${attr('type', q.type)}${common}${attr('minlength', q.minLength)}${attr('maxlength', q.maxLength)}${attr('pattern', q.pattern)}${attr('title', q.pattern ? q.patternMessage : undefined)}${attr('value', value)}>`;
   }
 }
 

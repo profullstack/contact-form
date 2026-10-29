@@ -76,6 +76,15 @@ export function ContactForm(props) {
     const form = new FormData(e.currentTarget);
     const body = {};
     for (const [k, v] of form.entries()) if (typeof v === 'string') body[k] = v;
+    // Analytics hook ("contact_submit"); returning false cancels the send.
+    if (p.onSubmit && p.onSubmit(body) === false) {
+      setState({ status: 'idle', message: '' });
+      return;
+    }
+    const fail = (message, data) => {
+      setState({ status: 'error', message });
+      if (p.onError) p.onError(message, data);
+    };
     try {
       const res = await fetch(p.action, {
         method: 'POST',
@@ -84,20 +93,14 @@ export function ContactForm(props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || errorOf(data)) {
-        setState({
-          status: 'error',
-          message: errorOf(data) || 'Something went wrong. Please try again.',
-        });
+        fail(errorOf(data) || 'Something went wrong. Please try again.', data);
         return;
       }
       setState({ status: 'sent', message: p.successMessage });
       setValues({});
       if (p.onSent) p.onSent(body, data);
     } catch {
-      setState({
-        status: 'error',
-        message: 'Could not send. Check your connection and try again.',
-      });
+      fail('Could not send. Check your connection and try again.', null);
     }
   }
 
@@ -143,7 +146,12 @@ export function ContactForm(props) {
       return h('input', { key: q.name, type: 'hidden', name: q.name, value: current(q.name) });
     let control;
     if (q.type === 'textarea')
-      control = h('textarea', { ...common, rows: q.rows ?? 5, maxLength: q.maxLength });
+      control = h('textarea', {
+        ...common,
+        rows: q.rows ?? 5,
+        minLength: q.minLength,
+        maxLength: q.maxLength,
+      });
     else if (q.type === 'select') {
       // A placeholder (or "-" when optional) is an empty first option, so a
       // required select makes the person choose instead of submitting the
@@ -159,7 +167,15 @@ export function ContactForm(props) {
     } else if (q.type === 'checkbox') {
       const { value, placeholder, ...rest } = common;
       control = h('input', { ...rest, type: 'checkbox', checked: isOn(value) });
-    } else control = h('input', { ...common, type: q.type, maxLength: q.maxLength });
+    } else
+      control = h('input', {
+        ...common,
+        type: q.type,
+        minLength: q.minLength,
+        maxLength: q.maxLength,
+        pattern: q.pattern,
+        title: q.pattern ? q.patternMessage : undefined,
+      });
     const label = h(
       'label',
       { htmlFor: id(q.name) },
