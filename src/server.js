@@ -297,13 +297,22 @@ async function pipeline({ req, body, options, guard, collect, getSender }) {
     }
   }
 
+  // verify(): true accepts; false or a string refuses as `invalid`; an object
+  // { kind: 'limited' | 'retry' | 'invalid', error? } refuses as that kind, so
+  // a database-backed rate limit answers like the guard's own (429, and
+  // ?error=limited on a plain form post).
   if (options.verify) {
     const ok = await options.verify(body, req);
-    if (ok !== true)
+    if (ok !== true) {
+      if (ok && typeof ok === 'object') {
+        const kind = ['limited', 'retry', 'invalid'].includes(ok.kind) ? ok.kind : 'invalid';
+        return { kind, ctx: ok.error ? { error: String(ok.error) } : {} };
+      }
       return {
         kind: 'invalid',
         ctx: { error: typeof ok === 'string' ? ok : 'Verification failed' },
       };
+    }
   }
 
   if (options.captcha) {

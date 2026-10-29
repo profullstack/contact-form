@@ -45,6 +45,8 @@ export interface Question {
   maxLength?: number;
   /** Fewest characters an answer may have (checked in the browser too). */
   minLength?: number;
+  /** How messages name the field when the label reads badly in a sentence (a label that is a question). */
+  errorLabel?: string;
   placeholder?: string;
   /** For `select`. Strings are both value and label. */
   options?: ReadonlyArray<string | QuestionOption>;
@@ -77,6 +79,7 @@ export interface NormalizedQuestion
   value?: string;
   default?: string;
   minLength?: number;
+  errorLabel?: string;
 }
 
 /** name (required), email (required), message (required). */
@@ -203,6 +206,11 @@ export type ContactResponseStyle = 'message' | 'success' | 'ok';
 export declare const ERROR_CODES: readonly ['invalid', 'retry', 'limited', 'sendFailed', 'error'];
 export declare const STYLE_PRESETS: Readonly<Record<ContactResponseStyle, ContactRouteResponses>>;
 
+export type VerifyResult =
+  | boolean
+  | string
+  | { kind: 'limited' | 'retry' | 'invalid'; error?: string };
+
 export interface ContactConfirmation {
   subject: string;
   html: string | ((submission: ContactSubmission) => string);
@@ -223,10 +231,14 @@ export interface ContactDeliveryOptions {
   text?: boolean;
   confirmation?: ContactConfirmation;
   captcha?: CaptchaOptions;
+  /**
+   * Extra check after the guard. true accepts; false or a string refuses as `invalid`;
+   * `{ kind: 'limited' | 'retry' | 'invalid', error? }` refuses as that kind (a DB rate limit -> 429).
+   */
   verify?: (
     body: Record<string, unknown>,
     req: ContactRequest,
-  ) => Promise<boolean | string> | boolean | string;
+  ) => Promise<VerifyResult> | VerifyResult;
   mapBody?: (body: Record<string, unknown>) => Record<string, unknown>;
   persist?: (
     submission: ContactSubmission,

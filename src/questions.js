@@ -152,6 +152,9 @@ export function withQuestions({
 
 /** A label fit for a sentence: "Name *" and "Email:" read as "Name" and "Email". */
 export function plainLabel(q) {
+  // `errorLabel` names the field in messages when the label is a question
+  // ("What do you want the corpus for?" -> "Your use case").
+  if (q.errorLabel) return String(q.errorLabel);
   return (
     String(q.label)
       .replace(/\s*[*:]+\s*$/, '')
@@ -259,6 +262,7 @@ export function publicQuestions(questions) {
       minLength,
       pattern,
       patternMessage,
+      errorLabel,
     }) => ({
       name,
       label,
@@ -275,6 +279,7 @@ export function publicQuestions(questions) {
       ...(minLength ? { minLength } : {}),
       ...(pattern ? { pattern } : {}),
       ...(patternMessage ? { patternMessage } : {}),
+      ...(errorLabel ? { errorLabel } : {}),
     }),
   );
 }
