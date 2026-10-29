@@ -625,6 +625,30 @@ export function createContactForm(options = {}) {
     }
   }
 
+  /**
+   * For frameworks that have already parsed the body (Primate's request.body,
+   * Express with body-parser): the same handling as POST, from the fields.
+   * `html: true` answers like a plain <form> post (303 back to `referer`).
+   */
+  async function handleFields(fields, o = {}) {
+    const headers = new Headers(o.headers ?? {});
+    if (o.ip && !headers.has('x-forwarded-for')) headers.set('x-forwarded-for', o.ip);
+    if (o.referer && !headers.has('referer')) headers.set('referer', o.referer);
+    const flat = {};
+    for (const [k, v] of Object.entries(fields ?? {})) {
+      if (v === undefined || v === null) continue;
+      flat[k] = Array.isArray(v) ? String(v[0] ?? '') : typeof v === 'object' ? '' : String(v);
+    }
+    const html = o.html === true;
+    headers.set('content-type', html ? 'application/x-www-form-urlencoded' : 'application/json');
+    const req = new Request(o.url ?? 'http://localhost/contact', {
+      method: 'POST',
+      headers,
+      body: html ? new URLSearchParams(flat).toString() : JSON.stringify(flat),
+    });
+    return post(req);
+  }
+
   /** GET: a fresh token and the questions, for a client-only page that cannot mint one server-side. */
   async function get() {
     return new Response(JSON.stringify(await props()), {
@@ -640,6 +664,7 @@ export function createContactForm(options = {}) {
     props,
     errorMessage,
     sentMessage,
+    handleFields,
     POST: post,
     GET: get,
     handle: post,

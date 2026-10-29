@@ -341,6 +341,20 @@ export interface ContactForm {
    * ?sent=1 or ?error=<code> (&field=&reason= for a validation failure); never free text.
    */
   POST(req: ContactRequest): Promise<Response>;
+  /**
+   * The same handling from an already-parsed body (Primate request.body, Express body-parser).
+   * `html: true` answers like a plain form post (303 back to `referer`).
+   */
+  handleFields(
+    fields: Record<string, unknown>,
+    options?: {
+      headers?: HeadersInit;
+      ip?: string;
+      referer?: string;
+      url?: string;
+      html?: boolean;
+    },
+  ): Promise<Response>;
   /** Same as POST. */
   handle(req: ContactRequest): Promise<Response>;
   /** Fresh props as JSON (no-store), for client-only pages: <ContactForm src="/api/contact" />. */

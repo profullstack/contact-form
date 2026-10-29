@@ -115,6 +115,26 @@ print the raw query value.
 Serve the page with `cache-control: no-store`: a cached page shares one token
 between visitors and expires it for all of them.
 
+**A framework that has already parsed the body** (Primate's `request.body`,
+Express with body-parser) passes the fields:
+`contact.handleFields(body, { headers, ip, referer, html: true })`. Same
+checks, same answers, no `Request` adapter in the site.
+
+**A static page loaded by a client-side router** can't mint a token on the
+server. Export `GET = contact.GET` from the route and mount the guard in the
+browser:
+
+```js
+import { mountGuard } from '@profullstack/contact-form/browser';
+await mountGuard(document.querySelector('form.contact'), '/api/contact');
+```
+
+It adds the token and the hidden honeypot (class `cf-hp`, so hide it in your
+CSS), and replaces them if you mount again.
+
+The module is ESM and needs Node 20 or later. An app on an older runtime has to
+upgrade first.
+
 ## Questions
 
 ```js
